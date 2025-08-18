@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension"
+     xmlns:fire="http://schemas.microsoft.com/wix/FirewallExtension">
+  
+  <Product Id="*" 
+           Name="!(loc.ProductName)" 
+           Language="!(loc.Language)" 
+           Version="!(bind.FileVersion.AntivirusService)"
+           Manufacturer="!(loc.Manufacturer)" 
+           UpgradeCode="12345678-1234-1234-1234-123456789ABC">
+    
+    <Package InstallerVersion="200" 
+             Compressed="yes" 
+             InstallScope="perMachine"
+             InstallPrivileges="elevated"
+             Description="!(loc.ProductDescription)"
+             Comments="!(loc.ProductComments)"
+             Manufacturer="!(loc.Manufacturer)" />
+
+    <!-- Major Upgrade -->
+    <MajorUpgrade DowngradeErrorMessage="!(loc.DowngradeError)" 
+                  Schedule="afterInstallInitialize" />
+    
+    <!-- Media -->
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Features -->
+    <Feature Id="Complete" 
+             Title="!(loc.CompleteFeatureTitle)" 
+             Description="!(loc.CompleteFeatureDescription)"
+             Display="expand" 
+             Level="1" 
+             ConfigurableDirectory="INSTALLFOLDER">
+      
+      <Feature Id="MainProgram" 
+               Title="!(loc.MainProgramTitle)" 
+               Description="!(loc.MainProgramDescription)" 
+               Level="1">
+        <ComponentGroupRef Id="ServiceComponents" />
+        <ComponentGroupRef Id="ClientComponents" />
+        <ComponentGroupRef Id="DatabaseComponents" />
+      </Feature>
+      
+      <Feature Id="StartupIntegration" 
+               Title="!(loc.StartupIntegrationTitle)" 
+               Description="!(loc.StartupIntegrationDescription)" 
+               Level="1">
+        <ComponentRef Id="StartupRegistry" />
+        <ComponentRef Id="SystemTrayComponent" />
+      </Feature>
+      
+      <Feature Id="SecurityIntegration" 
+               Title="!(loc.SecurityIntegrationTitle)" 
+               Description="!(loc.SecurityIntegrationDescription)" 
+               Level="1">
+        <ComponentRef Id="SecurityCenterIntegration" />
+        <ComponentRef Id="FirewallRules" />
+      </Feature>
+    </Feature>
+
+    <!-- Properties -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <Property Id="INSTALLFOLDER_VALID">
+      <DirectorySearch Id="INSTALLFOLDER_VALID_SEARCH" Path="[INSTALLFOLDER]" Depth="0" />
+    </Property>
+
+    <!-- Custom Actions -->
+    <Binary Id="CustomActionsDLL" SourceFile="CustomActions.CA.dll" />
+    
+    <CustomAction Id="CheckAdminPrivileges"
+                  BinaryKey="CustomActionsDLL"
+                  DllEntry="CheckAdminPrivileges"
+                  Execute="immediate"
+                  Return="check" />
+    
+    <CustomAction Id="StopExistingService"
+                  BinaryKey="CustomActionsDLL"
+                  DllEntry="StopExistingService"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+    
+    <CustomAction Id="RegisterSecurityCenter"
+                  BinaryKey="CustomActionsDLL"
+                  DllEntry="RegisterSecurityCenter"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+    
+    <CustomAction Id="UnregisterSecurityCenter"
+                  BinaryKey="CustomActionsDLL"
+                  DllEntry="UnregisterSecurityCenter"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <!-- Install Sequences -->
+    <InstallExecuteSequence>
+      <Custom Action="CheckAdminPrivileges" Before="LaunchConditions" />
+      <Custom Action="StopExistingService" Before="InstallServices">NOT Installed</Custom>
+      <Custom Action="RegisterSecurityCenter" After="InstallServices">NOT Installed</Custom>
+      <Custom Action="UnregisterSecurityCenter" Before="RemoveServices">REMOVE="ALL"</Custom>
+    </InstallExecuteSequence>
+
+    <!-- UI -->
+    <UIRef Id="WixUI_FeatureTree" />
+    <UIRef Id="WixUI_ErrorProgressText" />
+    
+    <!-- License -->
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+    
+    <!-- Icons -->
+    <Icon Id="ProductIcon" SourceFile="Resources\antivirus.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
+    
+    <!-- Add/Remove Programs -->
+    <Property Id="ARPHELPLINK" Value="https://www.yourcompany.com/support" />
+    <Property Id="ARPURLINFOABOUT" Value="https://www.yourcompany.com" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://www.yourcompany.com/updates" />
+  </Product>
+
+  <!-- Directories -->
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="!(loc.CompanyFolder)">
+          <Directory Id="SERVICEFOLDER" Name="Service" />
+          <Directory Id="CLIENTFOLDER" Name="Client" />
+          <Directory Id="DATABASEFOLDER" Name="Database" />
+          <Directory Id="LOGSFOLDER" Name="Logs" />
+          <Directory Id="QUARANTINEFOLDER" Name="Quarantine" />
+        </Directory>
+      </Directory>
+      
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="!(loc.ProductName)" />
+      </Directory>
+      
+      <Directory Id="StartupFolder" />
+    </Directory>
+  </Fragment>
+
+  <!-- Service Components -->
+  <Fragment>
+    <ComponentGroup Id="ServiceComponents">
+      <Component Id="AntivirusServiceExe" 
+                 Directory="SERVICEFOLDER" 
+                 Guid="11111111-1111-1111-1111-111111111111">
+        
+        <File Id="AntivirusServiceExe" 
+              Source="$(var.AntivirusService.TargetPath)" 
+              KeyPath="yes" />
+        
+        <!-- Windows Service -->
+        <ServiceInstall Id="AntivirusServiceInstall"
+                        Type="ownProcess"
+                        Vital="yes"
+                        Name="AntivirusService"
+                        DisplayName="!(loc.ServiceDisplayName)"
+                        Description="!(loc.ServiceDescription)"
+                        Start="auto"
+                        Account="LocalSystem"
+                        ErrorControl="normal"
+                        Interactive="no" />
+        
+        <ServiceControl Id="StartAntivirusService"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Name="AntivirusService"
+                        Wait="yes" />
+        
+        <!-- Registry Keys for Service -->
+        <RegistryKey Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\AntivirusService">
+          <RegistryValue Name="ImagePath" Type="expandable" 
+                         Value="&quot;[SERVICEFOLDER]AntivirusService.exe&quot;" />
+          <RegistryValue Name="Description" Type="string" 
+                         Value="!(loc.ServiceDescription)" />
+          <RegistryValue Name="Start" Type="integer" Value="2" />
+          <RegistryValue Name="Type" Type="integer" Value="16" />
+        </RegistryKey>
+      </Component>
+
+      <Component Id="ServiceConfig" 
+                 Directory="SERVICEFOLDER" 
+                 Guid="22222222-2222-2222-2222-222222222222">
+        <File Id="ServiceConfigFile" Source="service_config.xml" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- Client Components -->
+  <Fragment>
+    <ComponentGroup Id="ClientComponents">
+      <Component Id="TauriClientExe" 
+                 Directory="CLIENTFOLDER" 
+                 Guid="33333333-3333-3333-3333-333333333333">
+        <File Id="TauriClientExe" Source="$(var.TauriClient.TargetPath)" KeyPath="yes" />
+      </Component>
+      
+      <Component Id="ClientResources" 
+                 Directory="CLIENTFOLDER" 
+                 Guid="44444444-4444-4444-4444-444444444444">
+        <File Id="ClientConfigFile" Source="client_config.json" KeyPath="yes" />
+        <File Id="ClientResourcesDll" Source="resources.dll" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- Database Components -->
+  <Fragment>
+    <ComponentGroup Id="DatabaseComponents">
+      <Component Id="SignatureDatabase" 
+                 Directory="DATABASEFOLDER" 
+                 Guid="55555555-5555-5555-5555-555555555555">
+        <File Id="SignatureDb" Source="signatures.db" KeyPath="yes" />
+        <File Id="HeuristicRules" Source="heuristics.xml" />
+        <File Id="UpdateConfig" Source="update_config.xml" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- Registry and Startup Components -->
+  <Fragment>
+    <Component Id="StartupRegistry" 
+               Directory="INSTALLFOLDER" 
+               Guid="66666666-6666-6666-6666-666666666666">
+      <!-- Auto-start client application -->
+      <RegistryValue Root="HKLM" 
+                     Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Run" 
+                     Name="AntivirusClient" 
+                     Type="string" 
+                     Value="&quot;[CLIENTFOLDER]AntivirusClient.exe&quot; --startup" 
+                     KeyPath="yes" />
+    </Component>
+    
+    <Component Id="SystemTrayComponent" 
+               Directory="INSTALLFOLDER" 
+               Guid="77777777-7777-7777-7777-777777777777">
+      <RegistryKey Root="HKLM" Key="SOFTWARE\$(var.Manufacturer)\$(var.ProductName)">
+        <RegistryValue Name="InstallPath" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+        <RegistryValue Name="Version" Type="string" Value="!(bind.FileVersion.AntivirusService)" />
+        <RegistryValue Name="ServiceName" Type="string" Value="AntivirusService" />
+        <RegistryValue Name="ClientPath" Type="string" Value="[CLIENTFOLDER]AntivirusClient.exe" />
+        <RegistryValue Name="DatabasePath" Type="string" Value="[DATABASEFOLDER]signatures.db" />
+        <RegistryValue Name="QuarantinePath" Type="string" Value="[QUARANTINEFOLDER]" />
+      </RegistryKey>
+    </Component>
+  </Fragment>
+
+  <!-- Security Integration -->
+  <Fragment>
+    <Component Id="SecurityCenterIntegration" 
+               Directory="INSTALLFOLDER" 
+               Guid="88888888-8888-8888-8888-888888888888">
+      <!-- Windows Security Center registration -->
+      <RegistryKey Root="HKLM" Key="SOFTWARE\Microsoft\Security Center\Svc\AntivirusDisableNotify">
+        <RegistryValue Name="AntivirusService" Type="integer" Value="1" KeyPath="yes" />
+      </RegistryKey>
+      
+      <RegistryKey Root="HKLM" Key="SOFTWARE\Microsoft\Security Center\Monitoring\AntivirusService">
+        <RegistryValue Name="DisableMonitoring" Type="integer" Value="1" />
+      </RegistryKey>
+    </Component>
+    
+    <Component Id="FirewallRules" 
+               Directory="INSTALLFOLDER" 
+               Guid="99999999-9999-9999-9999-999999999999">
+      <!-- Windows Firewall exceptions -->
+      <fire:FirewallException Id="AntivirusServiceFirewall"
+                              Name="!(loc.ServiceDisplayName)"
+                              Port="12345"
+                              Protocol="tcp"
+                              Profile="all"
+                              Scope="localSubnet" />
+      
+      <fire:FirewallException Id="AntivirusClientFirewall"
+                              Name="!(loc.ClientDisplayName)"
+                              Program="[CLIENTFOLDER]AntivirusClient.exe"
+                              Profile="all"
+                              Scope="localSubnet" />
+      <util:User Id="ServiceUser" CreateUser="no" Name="NT AUTHORITY\SYSTEM" />
+    </Component>
+  </Fragment>
+
+  <!-- Shortcuts -->
+  <Fragment>
+    <Component Id="ApplicationShortcuts" 
+               Directory="ApplicationProgramsFolder" 
+               Guid="AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA">
+      <Shortcut Id="ClientStartMenuShortcut"
+                Name="!(loc.ProductName)"
+                Description="!(loc.ProductDescription)"
+                Target="[CLIENTFOLDER]AntivirusClient.exe"
+                WorkingDirectory="CLIENTFOLDER"
+                Icon="ProductIcon" />
+      
+      <Shortcut Id="UninstallShortcut"
+                Name="!(loc.UninstallShortcut)"
+                Target="[System64Folder]msiexec.exe"
+                Arguments="/x [ProductCode]"
+                Description="!(loc.UninstallDescription)" />
+      
+      <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall" />
+      <RegistryValue Root="HKCU" 
+                     Key="Software\$(var.Manufacturer)\$(var.ProductName)" 
+                     Name="installed" 
+                     Type="integer" 
+                     Value="1" 
+                     KeyPath="yes" />
+    </Component>
+  </Fragment>
+</Wix>
