@@ -49,14 +49,20 @@ cmake .. -G "Visual Studio 17 2022"
 cmake --build . --config Release
 ```
 
-2. Build the Tauri Client:
+2. Create windows service:
+```cmd
+cd ././build/bin/Release
+.\AntivirusService.exe -install
+```
+
+3. Build the Tauri Client:
 ```cmd
 cd client
 npm install
 cargo tauri build
 ```
 
-3. Create Installer:
+4. Create Installer:
 ```cmd
 cd installer
 # Instructions for WiX Toolset setup
